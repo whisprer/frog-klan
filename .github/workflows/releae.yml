@@ -1,0 +1,181 @@
+name: build-and-package
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: frogklan
+
+jobs:
+  build-package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      # ---- Build toolchain ----
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Configure (CMake)
+        shell: bash
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (CMake)
+        shell: bash
+        run: |
+          cmake --build build --config Release
+
+      # ---- Stage dist/* outputs in your required names ----
+      - name: Stage dist (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\win | Out-Null
+          # CMake output varies by generator; try common locations
+          $candidates = @(
+            "build\Release\frogklan.exe",
+            "build\frogklan.exe"
+          )
+          $src = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $src) { throw "Could not find built frogklan.exe in build output." }
+          Copy-Item $src dist\win\frogklan-win.exe -Force
+
+      - name: Stage dist (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist/linux
+          if [ -f build/frogklan ]; then
+            cp build/frogklan dist/linux/frogklan-linux
+          elif [ -f build/Release/frogklan ]; then
+            cp build/Release/frogklan dist/linux/frogklan-linux
+          else
+            echo "Could not find built frogklan binary"; ls -R build; exit 1
+          fi
+          chmod +x dist/linux/frogklan-linux
+
+      - name: Stage dist (macOS .app)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p dist/mac
+          BIN=""
+          if [ -f build/frogklan ]; then BIN="build/frogklan"; fi
+          if [ -z "$BIN" ] && [ -f build/Release/frogklan ]; then BIN="build/Release/frogklan"; fi
+          if [ -z "$BIN" ]; then echo "Could not find built frogklan binary"; ls -R build; exit 1; fi
+
+          APP="dist/mac/frogklan-mac.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
+          cp "$BIN" "$APP/Contents/MacOS/frogklan-mac"
+          chmod +x "$APP/Contents/MacOS/frogklan-mac"
+
+          cat > "$APP/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>frogklan</string>
+            <key>CFBundleDisplayName</key><string>frogklan</string>
+            <key>CFBundleExecutable</key><string>frogklan-mac</string>
+            <key>CFBundleIdentifier</key><string>com.frogklan.app</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+          </dict>
+          </plist>
+          EOF
+
+      # ---- Install packaging deps + run your packagers ----
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          makensis /VERSION
+
+      - name: Package Windows (NSIS)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python --version
+          python scripts\release.py --version $env:VERSION --target windows
+
+      - name: Install AppImage tool (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl
+          # appimagetool from AppImageKit releases
+          curl -L -o appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          sudo mv appimagetool /usr/local/bin/appimagetool
+          appimagetool --appimage-version || true
+
+      - name: Package Linux (AppImage)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python3 --version
+          python3 scripts/release.py --version "${VERSION}" --target linux
+
+      - name: Package macOS (pkgbuild)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          python3 --version
+          python3 scripts/release.py --version "${VERSION}" --target macos
+
+      # ---- Upload artifacts ----
+      - name: Upload packaged outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: frogklan-${{ steps.ver.outputs.version }}-${{ runner.os }}
+          path: |
+            out/*
+          if-no-files-found: error
+
+  # Optional: create a GitHub Release on tags
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files:

@@ -1,0 +1,10 @@
+^D:\CODE\FROG-KLAN\BUILD\CMAKEFILES\943758533D685FD0BB882A9A0CC2F3BF\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SD:/code/frog-klan -BD:/code/frog-klan/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/code/frog-klan/build/frogklan_qa.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

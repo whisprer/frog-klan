@@ -1,6 +1,45 @@
+[README.md]
+
+<p align="center">
+  <a href="https://github.com/whisprer-s-webspinners/frogKlan">
+    <img src="https://img.shields.io/github/stars/whisprer-s-webspinners/frogKlan?style=for-the-badge" alt="GitHub stars" />
+  </a>
+  <a href="https://github.com/whisprer-s-webspinners/frogKlan/issues">
+    <img src="https://img.shields.io/github/issues/whisprer-s-webspinners/frogKlan?style=for-the-badge" alt="GitHub issues" />
+  </a>
+  <a href="https://github.com/whisprer-s-webspinners/frogKlan/fork">
+    <img src="https://img.shields.io/github/forks/whisprer-s-webspinners/frogKlan?style=for-the-badge" alt="GitHub forks" />
+  </a>
+</p>
+
 # frogKlan
- phrone hacking how to monetise
+# FrogKlan SIP QA (signaling-only)
 
-this is all theoreticalo, right?
+A tiny, dependency-free SIP signaling QA tool:
+- SIP OPTIONS probe (availability + RTT)
+- Optional SIP REGISTER with Digest auth (401 challenge handling)
+- Writes JSON report to per-OS app data directory
 
-it _may_ have started after a fren asked me how to get revenge on a situation via setting up some nusance calls but typically i took it like 20 steps furether an d ended up down a rabbit hole of code to build entire phone hacking networks etc. loljust cosm it was interesting tho - not really something i was ever gonna actually do anything remotely real with in any way...
+## Build (all OS)
+
+### Configure
+mkdir -p build
+cd build
+cmake ..
+
+### Build
+cmake --build . --config Release
+
+The output binary will be:
+- build/frogklan (Linux/macOS)
+- build/Release/frogklan.exe (Visual Studio generator)
+
+## Run
+
+OPTIONS probe:
+./frogklan qa --host sip.example.com --from sip:qa@ex.com --to sip:qa@ex.com
+
+REGISTER probe (Digest):
+./frogklan qa --host sip.example.com --from sip:qa@ex.com --to sip:qa@ex.com \
+  --register --aor sip:1001@example.com --contact sip:1001@sip.example.com \
+  --user 1001 --pass secret --expires 120

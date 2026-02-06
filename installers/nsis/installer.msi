@@ -1,0 +1,46 @@
+!include "MUI2.nsh"
+
+Name "$%APP_NAME% $%APP_VERSION%"
+OutFile "$%OUT_SETUP%"
+InstallDir "$PROGRAMFILES64\$%APP_NAME%"
+InstallDirRegKey HKLM "Software\$%APP_NAME%" "InstallDir"
+RequestExecutionLevel admin
+
+!define MUI_ABORTWARNING
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+!insertmacro MUI_LANGUAGE "English"
+
+Section "Install"
+  SetOutPath "$INSTDIR"
+
+  ; Copy the entire dist/win payload (exe + dlls/assets)
+  File /r "$%DIST_WIN%\*.*"
+
+  ; Uninstaller
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+  ; Add/Remove Programs
+  WriteRegStr HKLM "Software\$%APP_NAME%" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%" "DisplayName" "$%APP_NAME% $%APP_VERSION%"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%" "DisplayVersion" "$%APP_VERSION%"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%" "UninstallString" "$INSTDIR\Uninstall.exe"
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%" "NoModify" 1
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%" "NoRepair" 1
+
+  ; Start Menu shortcut -> frogklan-win.exe
+  CreateDirectory "$SMPROGRAMS\$%APP_NAME%"
+  CreateShortCut "$SMPROGRAMS\$%APP_NAME%\$%APP_NAME%.lnk" "$INSTDIR\$%WIN_EXE%"
+SectionEnd
+
+Section "Uninstall"
+  Delete "$SMPROGRAMS\$%APP_NAME%\$%APP_NAME%.lnk"
+  RMDir "$SMPROGRAMS\$%APP_NAME%"
+  RMDir /r "$INSTDIR"
+
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$%APP_NAME%"
+  DeleteRegKey HKLM "Software\$%APP_NAME%"
+SectionEnd
