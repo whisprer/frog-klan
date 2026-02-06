@@ -1,3 +1,0 @@
-D:/code/frog-klan/build/CMakeFiles/frogklan.dir
-D:/code/frog-klan/build/CMakeFiles/ALL_BUILD.dir
-D:/code/frog-klan/build/CMakeFiles/ZERO_CHECK.dir
